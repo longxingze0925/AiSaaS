@@ -89,7 +89,7 @@ Route-level OpenAPI contract:
 openapi.yaml
 ```
 
-The OpenAPI file tracks registered routes and security schemes. Field-level request and response details remain in `../API接口文档.md`.
+The OpenAPI file tracks registered routes and security schemes. Field-level request and response details remain in `../docs/internal/architecture/API接口文档.md`.
 
 ## Product Layer
 

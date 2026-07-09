@@ -3,7 +3,7 @@
 This directory is the customization boundary for concrete SaaS products.
 
 For the full project customization workflow, start with
-`../../../产品魔改清单.md`.
+`../../../docs/internal/development/产品魔改清单.md`.
 
 Use it for:
 

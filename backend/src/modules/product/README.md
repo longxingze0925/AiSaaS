@@ -3,7 +3,7 @@
 This module is the backend customization boundary for concrete SaaS + AI products.
 
 For the full project customization workflow, start with
-`../../../../产品魔改清单.md`.
+`../../../../docs/internal/development/产品魔改清单.md`.
 
 Keep shared platform capabilities in core modules:
 
@@ -61,7 +61,7 @@ When a concrete product needs another initialized resource:
 4. Only then add write logic in `execute.rs`.
 5. Add a safe summary in `history.rs` if execution results change.
 6. Register routes in `admin.rs` / `router.rs` only when a new endpoint is required.
-7. Update `backend/openapi.yaml` and `API接口文档.md`.
+7. Update `backend/openapi.yaml` and `../../../../docs/internal/architecture/API接口文档.md`.
 8. Add tests before relying on the new path.
 
 If the resource cannot be idempotently identified, do not add it to `execute.rs`; return `manual` from preflight instead.

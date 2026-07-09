@@ -104,7 +104,7 @@ Navigation visibility and direct URL access both depend on `src/routes/menu.tsx`
 1. Add the route element in `src/app/App.tsx`.
 2. Add the matching menu metadata and permission in `src/routes/menu.tsx`.
 3. Add or reuse the backend API wrapper in `src/api`.
-4. Keep permission names aligned with `权限点与错误码清单.md`.
+4. Keep permission names aligned with `../docs/internal/architecture/权限点与错误码清单.md`.
 
 ## API Conventions
 

@@ -7,7 +7,7 @@ info:
 
     This file tracks registered paths, HTTP methods, authentication schemes,
     common response envelopes, and path/query parameters. Field-level request
-    and response details remain documented in ../API接口文档.md.
+    and response details remain documented in ../docs/internal/architecture/API接口文档.md.
 servers:
   - url: http://127.0.0.1:8080
     description: Local development backend
@@ -4769,7 +4769,7 @@ components:
           example: ok
         data:
           nullable: true
-          description: Endpoint-specific payload. See ../API接口文档.md.
+          description: Endpoint-specific payload. See ../docs/internal/architecture/API接口文档.md.
         request_id:
           type: string
           example: req_01HX0000000000000000000000

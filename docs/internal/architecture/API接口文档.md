@@ -3339,7 +3339,7 @@ Content-Type: application/json
 }
 ```
 
-完整接入流程见 `Web 后端接入指南.md`。
+完整接入流程见 `../../public/三方接口接入文档.md`。
 
 ### 18.10.5 Web 产品资产库接口
 

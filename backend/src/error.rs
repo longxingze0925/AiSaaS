@@ -544,7 +544,8 @@ mod tests {
 
     #[tokio::test]
     async fn app_error_response_codes_match_documented_error_codes() {
-        let documented_errors = include_str!("../../权限点与错误码清单.md");
+        let documented_errors =
+            include_str!("../../docs/internal/architecture/权限点与错误码清单.md");
         let cases = [
             (
                 AppError::account_disabled(),
