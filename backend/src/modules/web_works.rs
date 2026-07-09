@@ -81,6 +81,7 @@ pub struct WebWorkResponse {
 
 #[derive(Debug, Serialize)]
 pub struct WebWorkFavoriteResponse {
+    pub work: WebWork,
     pub work_id: Uuid,
     pub customer_id: Uuid,
     pub favorited: bool,
@@ -418,9 +419,11 @@ pub async fn favorite_work(
         Some(value) => Some(value),
         None => active_favorite_at(&state, &server_key, work_id, payload.customer_id).await?,
     };
+    let work = find_visible_work(&state, &server_key, work_id, payload.customer_id).await?;
 
     Ok(Json(ApiResponse::ok(
         WebWorkFavoriteResponse {
+            work,
             work_id,
             customer_id: payload.customer_id,
             favorited: true,
@@ -458,9 +461,11 @@ pub async fn unfavorite_work(
     .execute(&state.db)
     .await
     .map_err(map_db_error)?;
+    let work = find_visible_work(&state, &server_key, work_id, payload.customer_id).await?;
 
     Ok(Json(ApiResponse::ok(
         WebWorkFavoriteResponse {
+            work,
             work_id,
             customer_id: payload.customer_id,
             favorited: false,

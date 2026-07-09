@@ -550,6 +550,8 @@ pub fn build(state: AppState) -> Router {
             "/api/server/web/v1/customers/{id}/plan",
             get(web_api::get_customer_plan),
         )
+        .route("/api/server/web/v1/products", get(web_api::list_products))
+        .route("/api/server/web/v1/plans", get(web_api::list_plans))
         .route("/api/server/web/v1/ai/models", get(web_api::list_ai_models))
         .route(
             "/api/server/web/v1/ai/jobs",

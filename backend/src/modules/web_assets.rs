@@ -105,6 +105,10 @@ pub struct AssetFolder {
     pub customer_id: Uuid,
     pub parent_id: Option<Uuid>,
     pub name: String,
+    pub asset_count: i64,
+    #[serde(rename = "assetCount")]
+    #[sqlx(rename = "asset_count_alias")]
+    pub asset_count_alias: i64,
     #[sqlx(rename = "metadata_json")]
     pub metadata: Value,
     pub created_at: DateTime<Utc>,
@@ -1520,24 +1524,44 @@ async fn list_folders(
     sqlx::query_as::<_, AssetFolder>(
         r#"
         select
-          id,
-          customer_id,
-          parent_id,
-          name,
-          metadata_json,
-          created_at,
-          updated_at
-        from asset_folders
-        where tenant_id = $1
-          and app_id = $2
-          and customer_id = $3
-          and deleted_at is null
+          f.id,
+          f.customer_id,
+          f.parent_id,
+          f.name,
+          (
+            select count(*)::bigint
+            from customer_assets ca
+            where ca.tenant_id = f.tenant_id
+              and ca.app_id = f.app_id
+              and ca.customer_id = f.customer_id
+              and ca.folder_id = f.id
+              and ca.deleted_at is null
+              and ca.status <> 'deleted'
+          ) as asset_count,
+          (
+            select count(*)::bigint
+            from customer_assets ca
+            where ca.tenant_id = f.tenant_id
+              and ca.app_id = f.app_id
+              and ca.customer_id = f.customer_id
+              and ca.folder_id = f.id
+              and ca.deleted_at is null
+              and ca.status <> 'deleted'
+          ) as asset_count_alias,
+          f.metadata_json,
+          f.created_at,
+          f.updated_at
+        from asset_folders f
+        where f.tenant_id = $1
+          and f.app_id = $2
+          and f.customer_id = $3
+          and f.deleted_at is null
           and (
             not $4::bool
-            or ($5::uuid is null and parent_id is null)
-            or ($5::uuid is not null and parent_id = $5)
+            or ($5::uuid is null and f.parent_id is null)
+            or ($5::uuid is not null and f.parent_id = $5)
           )
-        order by created_at desc, id desc
+        order by f.created_at desc, f.id desc
         limit $6 offset $7
         "#,
     )
@@ -1628,19 +1652,39 @@ async fn find_folder(
     sqlx::query_as::<_, AssetFolder>(
         r#"
         select
-          id,
-          customer_id,
-          parent_id,
-          name,
-          metadata_json,
-          created_at,
-          updated_at
-        from asset_folders
-        where tenant_id = $1
-          and app_id = $2
-          and customer_id = $3
-          and id = $4
-          and deleted_at is null
+          f.id,
+          f.customer_id,
+          f.parent_id,
+          f.name,
+          (
+            select count(*)::bigint
+            from customer_assets ca
+            where ca.tenant_id = f.tenant_id
+              and ca.app_id = f.app_id
+              and ca.customer_id = f.customer_id
+              and ca.folder_id = f.id
+              and ca.deleted_at is null
+              and ca.status <> 'deleted'
+          ) as asset_count,
+          (
+            select count(*)::bigint
+            from customer_assets ca
+            where ca.tenant_id = f.tenant_id
+              and ca.app_id = f.app_id
+              and ca.customer_id = f.customer_id
+              and ca.folder_id = f.id
+              and ca.deleted_at is null
+              and ca.status <> 'deleted'
+          ) as asset_count_alias,
+          f.metadata_json,
+          f.created_at,
+          f.updated_at
+        from asset_folders f
+        where f.tenant_id = $1
+          and f.app_id = $2
+          and f.customer_id = $3
+          and f.id = $4
+          and f.deleted_at is null
         "#,
     )
     .bind(server_key.tenant_id)
@@ -1661,18 +1705,38 @@ async fn find_folder_by_id(
     sqlx::query_as::<_, AssetFolder>(
         r#"
         select
-          id,
-          customer_id,
-          parent_id,
-          name,
-          metadata_json,
-          created_at,
-          updated_at
-        from asset_folders
-        where tenant_id = $1
-          and app_id = $2
-          and id = $3
-          and deleted_at is null
+          f.id,
+          f.customer_id,
+          f.parent_id,
+          f.name,
+          (
+            select count(*)::bigint
+            from customer_assets ca
+            where ca.tenant_id = f.tenant_id
+              and ca.app_id = f.app_id
+              and ca.customer_id = f.customer_id
+              and ca.folder_id = f.id
+              and ca.deleted_at is null
+              and ca.status <> 'deleted'
+          ) as asset_count,
+          (
+            select count(*)::bigint
+            from customer_assets ca
+            where ca.tenant_id = f.tenant_id
+              and ca.app_id = f.app_id
+              and ca.customer_id = f.customer_id
+              and ca.folder_id = f.id
+              and ca.deleted_at is null
+              and ca.status <> 'deleted'
+          ) as asset_count_alias,
+          f.metadata_json,
+          f.created_at,
+          f.updated_at
+        from asset_folders f
+        where f.tenant_id = $1
+          and f.app_id = $2
+          and f.id = $3
+          and f.deleted_at is null
         "#,
     )
     .bind(server_key.tenant_id)

@@ -623,6 +623,38 @@ paths:
                 $ref: "#/components/schemas/WebCustomerPlanEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
+  /api/server/web/v1/products:
+    get:
+      tags: [server-web]
+      summary: List Web product catalog entries
+      description: Read-only catalog for product settings and billing display. Purchasing is not performed by this endpoint.
+      security:
+        - ServerApiKey: []
+      responses:
+        "200":
+          description: Wrapped Web product list response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebProductListEnvelope"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/server/web/v1/plans:
+    get:
+      tags: [server-web]
+      summary: List Web product subscription plan catalog entries
+      description: Read-only plan catalog for billing display. Items may be non-purchasable until order/payment integration is enabled.
+      security:
+        - ServerApiKey: []
+      responses:
+        "200":
+          description: Wrapped Web billing plan list response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebBillingPlanListEnvelope"
+        default:
+          $ref: "#/components/responses/ApiError"
   /api/server/web/v1/ai/models:
     get:
       tags: [server-web]
@@ -682,7 +714,11 @@ paths:
         - $ref: "#/components/parameters/PageSizeQuery"
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web AI generation job list response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebAiGenerationJobListEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
     post:
@@ -760,7 +796,11 @@ paths:
                         enum: [reference, first_frame, last_frame]
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web AI generation job response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebAiGenerationJobEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/ai/jobs/{id}:
@@ -779,7 +819,11 @@ paths:
         - ServerApiKey: []
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web AI generation job response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebAiGenerationJobEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/ai/jobs/{id}/cancel:
@@ -857,7 +901,11 @@ paths:
         - $ref: "#/components/parameters/PageSizeQuery"
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web asset folder list response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebAssetFolderListEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
     post:
@@ -887,7 +935,11 @@ paths:
                   additionalProperties: true
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web asset folder response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebAssetFolderEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/asset-folders/{id}:
@@ -917,7 +969,11 @@ paths:
                   additionalProperties: true
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web asset folder response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebAssetFolderEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
     delete:
@@ -927,7 +983,11 @@ paths:
         - ServerApiKey: []
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web asset folder delete response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebAssetFolderDeleteEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/assets/upload-url:
@@ -1243,7 +1303,11 @@ paths:
             format: uuid
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web work response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebWorkEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
     patch:
@@ -1276,7 +1340,11 @@ paths:
                   additionalProperties: true
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web work response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebWorkEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
     delete:
@@ -1297,7 +1365,11 @@ paths:
                   format: uuid
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web work delete response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebWorkDeleteEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/works/{id}/favorite:
@@ -1321,7 +1393,11 @@ paths:
                   format: uuid
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web work favorite response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebWorkFavoriteEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
     delete:
@@ -1342,7 +1418,11 @@ paths:
                   format: uuid
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web work favorite response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebWorkFavoriteEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/works/{id}/download:
@@ -1366,7 +1446,11 @@ paths:
                   format: uuid
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web work download response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebWorkDownloadEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/works/{id}/publish:
@@ -1394,7 +1478,11 @@ paths:
                     type: string
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web work response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebWorkEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/works/{id}/unpublish:
@@ -1418,7 +1506,11 @@ paths:
                   format: uuid
       responses:
         "200":
-          $ref: "#/components/responses/Ok"
+          description: Wrapped Web work response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebWorkEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/gallery:
@@ -5173,6 +5265,222 @@ components:
                 plan:
                   nullable: true
                   additionalProperties: true
+    WebProduct:
+      type: object
+      required: [id, code, name, slug, currency, auth_mode, authMode, default_plan, defaultPlan, plan_codes, planCodes]
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        currency:
+          type: string
+        auth_mode:
+          type: string
+        authMode:
+          type: string
+        default_plan:
+          type: string
+        defaultPlan:
+          type: string
+        plan_codes:
+          type: array
+          items:
+            type: string
+        planCodes:
+          type: array
+          items:
+            type: string
+    WebProductListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [items, products]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/WebProduct"
+                products:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/WebProduct"
+    WebBillingPlan:
+      type: object
+      required:
+        [
+          id,
+          code,
+          product_id,
+          productId,
+          name,
+          currency,
+          billing_period,
+          billingPeriod,
+          max_devices,
+          maxDevices,
+          features,
+          purchasable,
+          is_default,
+          isDefault
+        ]
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        product_id:
+          type: string
+        productId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        currency:
+          type: string
+        price_minor:
+          type: integer
+          format: int64
+          nullable: true
+        priceMinor:
+          type: integer
+          format: int64
+          nullable: true
+        billing_period:
+          type: string
+          example: month
+        billingPeriod:
+          type: string
+          example: month
+        ai_credits_minor:
+          type: integer
+          format: int64
+          nullable: true
+        aiCreditsMinor:
+          type: integer
+          format: int64
+          nullable: true
+        max_devices:
+          type: integer
+          format: int32
+        maxDevices:
+          type: integer
+          format: int32
+        features:
+          type: array
+          items:
+            type: string
+        purchasable:
+          type: boolean
+          description: false means the catalog item can be displayed but order/payment integration is not enabled yet.
+        is_default:
+          type: boolean
+        isDefault:
+          type: boolean
+    WebBillingPlanListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [items, plans]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/WebBillingPlan"
+                plans:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/WebBillingPlan"
+    WebAssetFolder:
+      type: object
+      required: [id, customer_id, name, asset_count, assetCount, metadata, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        asset_count:
+          type: integer
+          format: int64
+        assetCount:
+          type: integer
+          format: int64
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    WebAssetFolderListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [items, folders, meta, pagination]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/WebAssetFolder"
+                folders:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/WebAssetFolder"
+                meta:
+                  $ref: "#/components/schemas/WebPagination"
+                pagination:
+                  $ref: "#/components/schemas/WebPagination"
+    WebAssetFolderEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [folder]
+              properties:
+                folder:
+                  $ref: "#/components/schemas/WebAssetFolder"
+    WebAssetFolderDeleteEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [deleted, folder_id]
+              properties:
+                deleted:
+                  type: boolean
+                folder_id:
+                  type: string
+                  format: uuid
     WebAsset:
       type: object
       required: [id, name, kind, asset_type, status, source, sourceAlias, createdAt]
@@ -5565,6 +5873,72 @@ components:
                   $ref: "#/components/schemas/WebPagination"
                 pagination:
                   $ref: "#/components/schemas/WebPagination"
+    WebWorkEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [work]
+              properties:
+                work:
+                  $ref: "#/components/schemas/WebWork"
+    WebWorkFavoriteEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [work, work_id, customer_id, favorited]
+              properties:
+                work:
+                  $ref: "#/components/schemas/WebWork"
+                work_id:
+                  type: string
+                  format: uuid
+                customer_id:
+                  type: string
+                  format: uuid
+                favorited:
+                  type: boolean
+                favoritedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+    WebWorkDownloadEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [work, downloadUrl]
+              properties:
+                work:
+                  $ref: "#/components/schemas/WebWork"
+                downloadUrl:
+                  type: string
+                  nullable: true
+                downloadedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+    WebWorkDeleteEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [deleted, work_id]
+              properties:
+                deleted:
+                  type: boolean
+                work_id:
+                  type: string
+                  format: uuid
     AdminLoginRequest:
       type: object
       required: [email, password]

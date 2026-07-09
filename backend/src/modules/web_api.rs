@@ -21,6 +21,7 @@ use crate::{
             model::{Customer, NewCustomer},
             repository::CustomerRepository,
         },
+        product::defaults::{PRODUCT_DEFAULTS, PRODUCT_PLAN_CATALOG},
         server_api::{
             ai_invoke_scope, authenticate_server_key, customer_id_from_headers,
             ensure_server_customer_subscription, ServerApiKeyContext,
@@ -167,6 +168,66 @@ pub struct WebCustomerUsageResponse {
 #[derive(Debug, Serialize)]
 pub struct WebCustomerPlanResponse {
     pub plan: Option<SubscriptionSummary>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WebProductListResponse {
+    pub items: Vec<WebProductItem>,
+    pub products: Vec<WebProductItem>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WebProductItem {
+    pub id: String,
+    pub code: String,
+    pub name: String,
+    pub slug: String,
+    pub description: String,
+    pub currency: String,
+    pub auth_mode: String,
+    #[serde(rename = "authMode")]
+    pub auth_mode_alias: String,
+    pub default_plan: String,
+    #[serde(rename = "defaultPlan")]
+    pub default_plan_alias: String,
+    pub plan_codes: Vec<String>,
+    #[serde(rename = "planCodes")]
+    pub plan_codes_alias: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WebBillingPlanListResponse {
+    pub items: Vec<WebBillingPlanItem>,
+    pub plans: Vec<WebBillingPlanItem>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WebBillingPlanItem {
+    pub id: String,
+    pub code: String,
+    pub product_id: String,
+    #[serde(rename = "productId")]
+    pub product_id_alias: String,
+    pub name: String,
+    pub description: String,
+    pub currency: String,
+    pub price_minor: Option<i64>,
+    #[serde(rename = "priceMinor")]
+    pub price_minor_alias: Option<i64>,
+    pub billing_period: String,
+    #[serde(rename = "billingPeriod")]
+    pub billing_period_alias: String,
+    pub ai_credits_minor: Option<i64>,
+    #[serde(rename = "aiCreditsMinor")]
+    pub ai_credits_minor_alias: Option<i64>,
+    pub max_devices: i32,
+    #[serde(rename = "maxDevices")]
+    pub max_devices_alias: i32,
+    pub features: Vec<String>,
+    pub purchasable: bool,
+    pub is_default: bool,
+    #[serde(rename = "isDefault")]
+    pub is_default_alias: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -362,6 +423,40 @@ pub async fn get_customer_plan(
 
     Ok(Json(ApiResponse::ok(
         WebCustomerPlanResponse { plan },
+        request_id.0.to_string(),
+    )))
+}
+
+pub async fn list_products(
+    State(state): State<AppState>,
+    request_id: axum::Extension<RequestId>,
+    headers: HeaderMap,
+) -> Result<Json<ApiResponse<WebProductListResponse>>, AppError> {
+    authenticate_web_server_key(&state, &headers).await?;
+    let items = vec![web_product_item()];
+
+    Ok(Json(ApiResponse::ok(
+        WebProductListResponse {
+            products: items.clone(),
+            items,
+        },
+        request_id.0.to_string(),
+    )))
+}
+
+pub async fn list_plans(
+    State(state): State<AppState>,
+    request_id: axum::Extension<RequestId>,
+    headers: HeaderMap,
+) -> Result<Json<ApiResponse<WebBillingPlanListResponse>>, AppError> {
+    authenticate_web_server_key(&state, &headers).await?;
+    let items = web_billing_plans();
+
+    Ok(Json(ApiResponse::ok(
+        WebBillingPlanListResponse {
+            plans: items.clone(),
+            items,
+        },
         request_id.0.to_string(),
     )))
 }
@@ -634,6 +729,92 @@ fn web_customer_user(customer: Customer) -> WebCustomerUser {
         email_verified: customer.email_verified,
         email_verified_alias: customer.email_verified,
     }
+}
+
+fn web_product_item() -> WebProductItem {
+    let access = PRODUCT_DEFAULTS.access;
+    let product_id = access.application_slug.to_owned();
+    let default_plan = PRODUCT_DEFAULTS.default_subscription_plan.to_owned();
+    let plan_codes = PRODUCT_DEFAULTS
+        .subscription_plans
+        .iter()
+        .map(|plan| plan.code.to_owned())
+        .collect::<Vec<_>>();
+
+    WebProductItem {
+        id: product_id.clone(),
+        code: product_id.clone(),
+        name: access.application_name.to_owned(),
+        slug: product_id,
+        description: "AI 图片、视频、音频生成 SaaS".to_owned(),
+        currency: PRODUCT_DEFAULTS.ai_billing.currency.to_owned(),
+        auth_mode: access.auth_mode.to_owned(),
+        auth_mode_alias: access.auth_mode.to_owned(),
+        default_plan: default_plan.clone(),
+        default_plan_alias: default_plan,
+        plan_codes: plan_codes.clone(),
+        plan_codes_alias: plan_codes,
+    }
+}
+
+fn web_billing_plans() -> Vec<WebBillingPlanItem> {
+    let product_id = PRODUCT_DEFAULTS.access.application_slug.to_owned();
+    PRODUCT_DEFAULTS
+        .subscription_plans
+        .iter()
+        .map(|plan| {
+            let catalog = PRODUCT_PLAN_CATALOG
+                .iter()
+                .find(|catalog| catalog.code == plan.code);
+            let name = catalog
+                .map(|item| item.name)
+                .unwrap_or(plan.code)
+                .to_owned();
+            let description = catalog
+                .map(|item| item.description)
+                .unwrap_or("AI generation subscription plan")
+                .to_owned();
+            let currency = catalog
+                .map(|item| item.currency)
+                .unwrap_or(PRODUCT_DEFAULTS.ai_billing.currency)
+                .to_owned();
+            let price_minor = catalog.and_then(|item| item.price_minor);
+            let billing_period = catalog
+                .map(|item| item.billing_period)
+                .unwrap_or("month")
+                .to_owned();
+            let ai_credits_minor = catalog.and_then(|item| item.ai_credits_minor);
+            let purchasable = catalog.map(|item| item.purchasable).unwrap_or(false);
+            let features = plan
+                .features
+                .iter()
+                .map(|feature| (*feature).to_owned())
+                .collect::<Vec<_>>();
+            let is_default = plan.code == PRODUCT_DEFAULTS.default_subscription_plan;
+
+            WebBillingPlanItem {
+                id: plan.code.to_owned(),
+                code: plan.code.to_owned(),
+                product_id: product_id.clone(),
+                product_id_alias: product_id.clone(),
+                name,
+                description,
+                currency,
+                price_minor,
+                price_minor_alias: price_minor,
+                billing_period: billing_period.clone(),
+                billing_period_alias: billing_period,
+                ai_credits_minor,
+                ai_credits_minor_alias: ai_credits_minor,
+                max_devices: plan.max_devices,
+                max_devices_alias: plan.max_devices,
+                features,
+                purchasable,
+                is_default,
+                is_default_alias: is_default,
+            }
+        })
+        .collect()
 }
 
 fn optional_customer_id_from_headers(headers: &HeaderMap) -> Result<Option<Uuid>, AppError> {

@@ -26,6 +26,18 @@ pub struct ProductSubscriptionPlan {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct ProductPlanCatalogItem {
+    pub code: &'static str,
+    pub name: &'static str,
+    pub description: &'static str,
+    pub currency: &'static str,
+    pub price_minor: Option<i64>,
+    pub billing_period: &'static str,
+    pub ai_credits_minor: Option<i64>,
+    pub purchasable: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct ProductWalletAdjustmentDefaults {
     pub credit_reason: &'static str,
     pub debit_reason: &'static str,
@@ -101,6 +113,39 @@ pub const PRODUCT_SUBSCRIPTION_PLANS: &[ProductSubscriptionPlan] = &[
     },
 ];
 
+pub const PRODUCT_PLAN_CATALOG: &[ProductPlanCatalogItem] = &[
+    ProductPlanCatalogItem {
+        code: "creator",
+        name: "创作者版",
+        description: "适合个人图片与音频生成工作流",
+        currency: "CNY",
+        price_minor: None,
+        billing_period: "month",
+        ai_credits_minor: None,
+        purchasable: false,
+    },
+    ProductPlanCatalogItem {
+        code: "studio",
+        name: "工作室版",
+        description: "适合图片、视频、音频生成和素材库管理",
+        currency: "CNY",
+        price_minor: None,
+        billing_period: "month",
+        ai_credits_minor: None,
+        purchasable: false,
+    },
+    ProductPlanCatalogItem {
+        code: "team_studio",
+        name: "团队工作室版",
+        description: "适合团队协作、批量工作流和多设备使用",
+        currency: "CNY",
+        price_minor: None,
+        billing_period: "month",
+        ai_credits_minor: None,
+        purchasable: false,
+    },
+];
+
 pub const PRODUCT_DEFAULTS: ProductDefaults = ProductDefaults {
     access: ProductAccessDefaults {
         application_name: "灵感影像工坊 API 接入",
@@ -161,5 +206,14 @@ mod tests {
             .access
             .server_api_scopes
             .contains(&AI_INVOKE_SCOPE));
+    }
+
+    #[test]
+    fn plan_catalog_matches_subscription_plans() {
+        for plan in PRODUCT_DEFAULTS.subscription_plans {
+            assert!(super::PRODUCT_PLAN_CATALOG
+                .iter()
+                .any(|catalog| catalog.code == plan.code));
+        }
     }
 }
