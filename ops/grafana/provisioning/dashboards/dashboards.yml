@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: AiSaaS
+    orgId: 1
+    folder: AiSaaS
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
