@@ -21,7 +21,7 @@ interface ProductAccessConfig {
 
 export const productAccessConfig: ProductAccessConfig = {
   applicationDefaults: {
-    name: "灵感影像工坊 API 接入",
+    name: "AiSaaS API 接入",
     slug: "media-studio-default",
     authMode: "subscription",
     heartbeatIntervalSeconds: 3600,
