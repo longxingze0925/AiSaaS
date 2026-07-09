@@ -700,6 +700,9 @@ paths:
                 type:
                   type: string
                   enum: [image, video, audio]
+                job_type:
+                  type: string
+                  enum: [image, video, audio]
                 model:
                   type: string
                 prompt:
@@ -714,7 +717,12 @@ paths:
                   type: integer
                 durationSec:
                   type: integer
+                durationSeconds:
+                  type: integer
                 inputMode:
+                  type: string
+                  enum: [text, image, video, frames, audio]
+                sourceMode:
                   type: string
                   enum: [text, image, video, frames, audio]
                 referenceAssetIds:
@@ -1423,6 +1431,11 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [latest, hot, featured]
         - $ref: "#/components/parameters/PageQuery"
         - $ref: "#/components/parameters/PageSizeQuery"
       responses:
@@ -5106,7 +5119,13 @@ components:
         model_code:
           type: string
           nullable: true
+        model:
+          type: string
+          nullable: true
         job_type:
+          type: string
+          enum: [image, video, audio]
+        type:
           type: string
           enum: [image, video, audio]
         status:
@@ -5117,6 +5136,19 @@ components:
           format: int64
           minimum: 0
           maximum: 100
+        prompt:
+          type: string
+          nullable: true
+        aspectRatio:
+          type: string
+          nullable: true
+        resolution:
+          type: string
+          nullable: true
+        durationSec:
+          type: integer
+          format: int64
+          nullable: true
         provider_status:
           type: string
           nullable: true
@@ -5156,15 +5188,27 @@ components:
         held_minor:
           type: integer
           format: int64
+        heldMinor:
+          type: integer
+          format: int64
         charged_minor:
+          type: integer
+          format: int64
+        chargedMinor:
           type: integer
           format: int64
         refunded_minor:
           type: integer
           format: int64
+        refundedMinor:
+          type: integer
+          format: int64
         currency:
           type: string
         failure_reason:
+          type: string
+          nullable: true
+        failureReason:
           type: string
           nullable: true
         sourceMode:

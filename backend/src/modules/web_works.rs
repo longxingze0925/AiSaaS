@@ -150,6 +150,7 @@ pub struct WebGalleryQuery {
     #[serde(rename = "type")]
     pub work_type: Option<String>,
     pub customer_id: Option<Uuid>,
+    pub sort: Option<String>,
     pub page: Option<i64>,
     pub page_size: Option<i64>,
 }
@@ -647,6 +648,12 @@ pub async fn list_gallery(
         .as_deref()
         .map(normalize_work_type)
         .transpose()?;
+    let sort = query
+        .sort
+        .as_deref()
+        .map(normalize_gallery_sort)
+        .transpose()?
+        .unwrap_or("featured");
     let (page, page_size) = normalize_page(query.page, query.page_size);
     let fetch_limit = page_size + 1;
     let items = list_published_gallery(
@@ -654,6 +661,7 @@ pub async fn list_gallery(
         &server_key,
         query.customer_id,
         work_type.as_deref(),
+        sort,
         page,
         fetch_limit,
     )
@@ -823,10 +831,12 @@ async fn list_published_gallery(
     server_key: &ServerApiKeyContext,
     current_customer_id: Option<Uuid>,
     work_type: Option<&str>,
+    sort: &str,
     page: i64,
     page_size: i64,
 ) -> Result<Vec<WebWork>, AppError> {
     let offset = (page - 1) * page_size;
+    let order_by = gallery_order_by(sort);
     sqlx::query_as::<_, WebWork>(&format!(
         "{} join work_publications gallery_p
           on gallery_p.work_id = w.id
@@ -839,7 +849,7 @@ async fn list_published_gallery(
           and w.status = 'active'
           and w.visibility = 'public'
           and ($4::text is null or w.work_type = $4)
-        order by gallery_p.sort_score desc, gallery_p.published_at desc nulls last, w.created_at desc
+        order by {order_by}
         limit $5 offset $6",
         work_select_sql()
     ))
@@ -1127,7 +1137,27 @@ fn normalize_visibility(value: &str) -> Result<String, AppError> {
     let value = value.trim().to_ascii_lowercase();
     match value.as_str() {
         "private" | "public" => Ok(value),
+        "gallery" => Ok("public".to_owned()),
         _ => Err(AppError::validation_failed("work visibility is invalid")),
+    }
+}
+
+fn normalize_gallery_sort(value: &str) -> Result<&'static str, AppError> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "latest" => Ok("latest"),
+        "hot" => Ok("hot"),
+        "featured" => Ok("featured"),
+        _ => Err(AppError::validation_failed("gallery sort is invalid")),
+    }
+}
+
+fn gallery_order_by(sort: &str) -> &'static str {
+    match sort {
+        "latest" => "gallery_p.published_at desc nulls last, w.created_at desc, w.id desc",
+        "hot" => {
+            "favorite_stats.favorite_count desc, gallery_p.sort_score desc, gallery_p.published_at desc nulls last, w.created_at desc, w.id desc"
+        }
+        _ => "gallery_p.sort_score desc, gallery_p.published_at desc nulls last, w.created_at desc, w.id desc",
     }
 }
 
@@ -1197,8 +1227,9 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        normalize_metadata, normalize_optional_description, normalize_tags, normalize_title,
-        normalize_visibility, normalize_work_type,
+        gallery_order_by, normalize_gallery_sort, normalize_metadata,
+        normalize_optional_description, normalize_tags, normalize_title, normalize_visibility,
+        normalize_work_type,
     };
 
     #[test]
@@ -1208,7 +1239,11 @@ mod tests {
         assert_eq!(normalize_work_type("Video").unwrap(), "video");
         assert!(normalize_work_type("gallery").is_err());
         assert_eq!(normalize_visibility("PUBLIC").unwrap(), "public");
+        assert_eq!(normalize_visibility("gallery").unwrap(), "public");
         assert!(normalize_visibility("team").is_err());
+        assert_eq!(normalize_gallery_sort("hot").unwrap(), "hot");
+        assert!(normalize_gallery_sort("random").is_err());
+        assert!(gallery_order_by("hot").contains("favorite_stats.favorite_count"));
     }
 
     #[test]

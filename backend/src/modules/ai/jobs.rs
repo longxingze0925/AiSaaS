@@ -73,6 +73,9 @@ pub struct AiGenerationJob {
     pub request_id: Option<String>,
     pub idempotency_key: Option<String>,
     pub job_type: String,
+    #[serde(rename = "type")]
+    #[sqlx(rename = "job_type_alias")]
+    pub job_type_alias: String,
     pub status: String,
     pub provider_status: Option<String>,
     pub provider_job_id: Option<String>,
@@ -87,13 +90,36 @@ pub struct AiGenerationJob {
     #[serde(rename = "workId")]
     pub work_id: Option<Uuid>,
     pub progress: i64,
+    pub prompt: Option<String>,
+    #[serde(rename = "model")]
+    #[sqlx(rename = "model_code_alias")]
+    pub model_code_alias: Option<String>,
+    #[serde(rename = "aspectRatio")]
+    #[sqlx(rename = "aspect_ratio_alias")]
+    pub aspect_ratio: Option<String>,
+    pub resolution: Option<String>,
+    #[serde(rename = "durationSec")]
+    #[sqlx(rename = "duration_sec_alias")]
+    pub duration_sec: Option<i64>,
     pub charge_mode: String,
     pub quantity: i64,
     pub held_minor: i64,
+    #[serde(rename = "heldMinor")]
+    #[sqlx(rename = "held_minor_alias")]
+    pub held_minor_alias: i64,
     pub charged_minor: i64,
+    #[serde(rename = "chargedMinor")]
+    #[sqlx(rename = "charged_minor_alias")]
+    pub charged_minor_alias: i64,
     pub refunded_minor: i64,
+    #[serde(rename = "refundedMinor")]
+    #[sqlx(rename = "refunded_minor_alias")]
+    pub refunded_minor_alias: i64,
     pub currency: String,
     pub failure_reason: Option<String>,
+    #[serde(rename = "failureReason")]
+    #[sqlx(rename = "failure_reason_alias")]
+    pub failure_reason_alias: Option<String>,
     #[serde(rename = "sourceMode")]
     pub source_mode: Option<String>,
     #[serde(rename = "referenceCount")]
@@ -183,7 +209,7 @@ pub struct AdminJobActionRequest {
 #[derive(Debug, Deserialize)]
 pub struct WebCreateGenerationJobRequest {
     pub customer_id: Uuid,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", alias = "job_type")]
     pub job_type: String,
     #[serde(flatten)]
     pub payload: Map<String, Value>,
@@ -508,11 +534,12 @@ pub async fn web_create_job(
             AppError::validation_failed("customer_id header could not be constructed")
         })?,
     );
+    let payload = normalize_web_generation_payload(payload.payload)?;
     create_server_generation_job(
         state,
         request_id,
         headers,
-        Value::Object(payload.payload),
+        Value::Object(payload),
         &job_type,
     )
     .await
@@ -4191,6 +4218,7 @@ async fn find_generation_job_detail(
           j.request_id,
           j.idempotency_key,
           j.job_type,
+          j.job_type as job_type_alias,
           j.status,
           j.provider_status,
           j.provider_job_id,
@@ -4272,13 +4300,45 @@ async fn find_generation_job_detail(
             else 0
             end
           )::bigint as progress,
+          nullif(j.request_payload->>'prompt', '') as prompt,
+          m.code as model_code_alias,
+          nullif(coalesce(
+            j.request_payload->>'aspectRatio',
+            j.request_payload->>'aspect_ratio',
+            j.request_payload->>'ratio'
+          ), '') as aspect_ratio_alias,
+          nullif(coalesce(
+            j.request_payload->>'resolution',
+            j.request_payload->>'size'
+          ), '') as resolution,
+          case
+            when coalesce(
+              j.request_payload->>'durationSec',
+              j.request_payload->>'durationSeconds',
+              j.request_payload->>'duration',
+              j.request_payload->>'duration_seconds',
+              j.request_payload->>'seconds'
+            ) ~ '^[0-9]+$'
+              then coalesce(
+                j.request_payload->>'durationSec',
+                j.request_payload->>'durationSeconds',
+                j.request_payload->>'duration',
+                j.request_payload->>'duration_seconds',
+                j.request_payload->>'seconds'
+              )::bigint
+            else null
+          end as duration_sec_alias,
           j.charge_mode,
           j.quantity,
           j.held_minor,
+          j.held_minor as held_minor_alias,
           j.charged_minor,
+          j.charged_minor as charged_minor_alias,
           j.refunded_minor,
+          j.refunded_minor as refunded_minor_alias,
           j.currency,
           j.failure_reason,
+          j.failure_reason as failure_reason_alias,
           nullif(coalesce(work.metadata_json->>'sourceMode', coalesce(j.request_payload->'aisaas_input', j.request_payload->'entitlehub_input')->>'sourceMode'), '') as source_mode,
           coalesce(
             case when work.metadata_json->>'referenceCount' ~ '^[0-9]+$'
@@ -4463,6 +4523,7 @@ fn job_select_sql() -> &'static str {
       j.request_id,
       j.idempotency_key,
       j.job_type,
+      j.job_type as job_type_alias,
       j.status,
       j.provider_status,
       j.provider_job_id,
@@ -4544,13 +4605,45 @@ fn job_select_sql() -> &'static str {
         else 0
         end
       )::bigint as progress,
+      nullif(j.request_payload->>'prompt', '') as prompt,
+      m.code as model_code_alias,
+      nullif(coalesce(
+        j.request_payload->>'aspectRatio',
+        j.request_payload->>'aspect_ratio',
+        j.request_payload->>'ratio'
+      ), '') as aspect_ratio_alias,
+      nullif(coalesce(
+        j.request_payload->>'resolution',
+        j.request_payload->>'size'
+      ), '') as resolution,
+      case
+        when coalesce(
+          j.request_payload->>'durationSec',
+          j.request_payload->>'durationSeconds',
+          j.request_payload->>'duration',
+          j.request_payload->>'duration_seconds',
+          j.request_payload->>'seconds'
+        ) ~ '^[0-9]+$'
+          then coalesce(
+            j.request_payload->>'durationSec',
+            j.request_payload->>'durationSeconds',
+            j.request_payload->>'duration',
+            j.request_payload->>'duration_seconds',
+            j.request_payload->>'seconds'
+          )::bigint
+        else null
+      end as duration_sec_alias,
       j.charge_mode,
       j.quantity,
       j.held_minor,
+      j.held_minor as held_minor_alias,
       j.charged_minor,
+      j.charged_minor as charged_minor_alias,
       j.refunded_minor,
+      j.refunded_minor as refunded_minor_alias,
       j.currency,
       j.failure_reason,
+      j.failure_reason as failure_reason_alias,
       nullif(coalesce(work.metadata_json->>'sourceMode', coalesce(j.request_payload->'aisaas_input', j.request_payload->'entitlehub_input')->>'sourceMode'), '') as source_mode,
       coalesce(
         case when work.metadata_json->>'referenceCount' ~ '^[0-9]+$'
@@ -4918,6 +5011,22 @@ fn optional_positive_i64(payload: &Value, keys: &[&str]) -> Option<i64> {
     None
 }
 
+fn normalize_web_generation_payload(
+    mut payload: Map<String, Value>,
+) -> Result<Map<String, Value>, AppError> {
+    let nested_payload = payload.remove("payload");
+    if let Some(nested_payload) = nested_payload {
+        let Value::Object(nested_payload) = nested_payload else {
+            return Err(AppError::validation_failed("payload must be an object"));
+        };
+        for (key, value) in nested_payload {
+            payload.entry(key).or_insert(value);
+        }
+    }
+
+    Ok(payload)
+}
+
 async fn load_and_validate_generation_input_assets(
     state: &AppState,
     server_key: &ServerApiKeyContext,
@@ -4927,7 +5036,10 @@ async fn load_and_validate_generation_input_assets(
     model: &JobModel,
 ) -> Result<GenerationInputAssets, AppError> {
     let capabilities = capabilities::ModelCapabilities::from_config(&model.pricing_config)?;
-    let input_mode = optional_string(payload, &["inputMode", "input_mode"]);
+    let input_mode = optional_string(
+        payload,
+        &["inputMode", "input_mode", "sourceMode", "source_mode"],
+    );
     if let Some(input_mode) = input_mode.as_deref() {
         capabilities::validate_input_mode(input_mode, &model.pricing_config)?;
     }
@@ -5114,7 +5226,11 @@ fn normalize_generation_request_payload(
         &["durationSec", "durationSeconds", "duration_seconds"],
         "duration",
     );
-    copy_value_aliases(&mut object, &["inputMode"], "input_mode");
+    copy_value_aliases(
+        &mut object,
+        &["inputMode", "sourceMode", "source_mode"],
+        "input_mode",
+    );
     object.remove("referenceAssets");
     object.remove("reference_assets");
     if let Some(input_mode) = input_assets.input_mode.as_deref() {

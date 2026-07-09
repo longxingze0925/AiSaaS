@@ -138,8 +138,11 @@ impl ModelCapabilities {
             "resolutions": self.resolutions,
             "durations": self.durations,
             "default_duration_seconds": self.default_duration_seconds,
+            "defaultDurationSeconds": self.default_duration_seconds,
             "image_counts": self.image_counts,
+            "imageCounts": self.image_counts,
             "max_images": self.max_images,
+            "maxImages": self.max_images,
             "inputModes": self.input_modes,
             "maxReferenceImages": self.max_reference_images,
             "maxReferenceVideos": self.max_reference_videos,
@@ -494,6 +497,7 @@ mod tests {
 
         assert_eq!(public["resolutions"], json!(["720p"]));
         assert_eq!(public["max_images"], json!(4));
+        assert_eq!(public["maxImages"], json!(4));
         assert_eq!(public["inputModes"], json!(["text", "image"]));
         assert_eq!(public["maxReferenceVideos"], json!(1));
         assert_eq!(public["maxReferenceAudios"], json!(3));
