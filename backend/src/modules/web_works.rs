@@ -116,6 +116,7 @@ pub struct ListMeta {
     pub page_size_alias: i64,
     #[serde(rename = "hasMore")]
     pub has_more: bool,
+    pub total: Option<i64>,
 }
 
 impl ListMeta {
@@ -125,6 +126,7 @@ impl ListMeta {
             page_size,
             page_size_alias: page_size,
             has_more,
+            total: None,
         }
     }
 }

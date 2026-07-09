@@ -21,7 +21,10 @@ use crate::{
             model::{Customer, NewCustomer},
             repository::CustomerRepository,
         },
-        server_api::{ai_invoke_scope, authenticate_server_key, ServerApiKeyContext},
+        server_api::{
+            ai_invoke_scope, authenticate_server_key, customer_id_from_headers,
+            ensure_server_customer_subscription, ServerApiKeyContext,
+        },
         subscription::{model::SubscriptionSummary, repository::SubscriptionRepository},
     },
     state::AppState,
@@ -45,34 +48,57 @@ pub struct WebCustomerLoginRequest {
 
 #[derive(Debug, Serialize)]
 pub struct WebCustomerAuthResponse {
+    pub customer: WebCustomerUser,
     pub user: WebCustomerUser,
 }
 
 #[derive(Debug, Serialize)]
 pub struct WebCustomerResponse {
+    pub customer: WebCustomerUser,
     pub user: WebCustomerUser,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct WebCustomerUser {
     pub id: Uuid,
+    pub customer_id: Uuid,
+    #[serde(rename = "customerId")]
+    pub customer_id_alias: Uuid,
     pub email: String,
     pub name: Option<String>,
-    #[serde(rename = "customerId")]
-    pub customer_id: Uuid,
     pub status: String,
     pub email_verified: bool,
+    #[serde(rename = "emailVerified")]
+    pub email_verified_alias: bool,
 }
 
 #[derive(Debug, Serialize, FromRow)]
 pub struct WebCustomerBalance {
     pub customer_id: Uuid,
+    #[serde(rename = "customerId")]
+    #[sqlx(rename = "customer_id_alias")]
+    pub customer_id_alias: Uuid,
     pub currency: String,
     pub balance_minor: i64,
+    #[serde(rename = "balanceMinor")]
+    #[sqlx(rename = "balance_minor_alias")]
+    pub balance_minor_alias: i64,
     pub held_minor: i64,
+    #[serde(rename = "heldMinor")]
+    #[sqlx(rename = "held_minor_alias")]
+    pub held_minor_alias: i64,
     pub available_minor: i64,
+    #[serde(rename = "availableMinor")]
+    #[sqlx(rename = "available_minor_alias")]
+    pub available_minor_alias: i64,
     pub ai_enabled: bool,
+    #[serde(rename = "aiEnabled")]
+    #[sqlx(rename = "ai_enabled_alias")]
+    pub ai_enabled_alias: bool,
     pub daily_spend_limit_minor: Option<i64>,
+    #[serde(rename = "dailySpendLimitMinor")]
+    #[sqlx(rename = "daily_spend_limit_minor_alias")]
+    pub daily_spend_limit_minor_alias: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -91,6 +117,7 @@ pub struct WebCustomerUsageQuery {
 pub struct WebAiModelListQuery {
     #[serde(rename = "type")]
     pub modality: Option<String>,
+    pub customer_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -134,6 +161,7 @@ pub struct WebCustomerUsageRecord {
 pub struct WebCustomerUsageResponse {
     pub items: Vec<WebCustomerUsageRecord>,
     pub meta: WebListMeta,
+    pub pagination: WebListMeta,
 }
 
 #[derive(Debug, Serialize)]
@@ -141,10 +169,27 @@ pub struct WebCustomerPlanResponse {
     pub plan: Option<SubscriptionSummary>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct WebListMeta {
     pub page: i64,
     pub page_size: i64,
+    #[serde(rename = "pageSize")]
+    pub page_size_alias: i64,
+    #[serde(rename = "hasMore")]
+    pub has_more: bool,
+    pub total: Option<i64>,
+}
+
+impl WebListMeta {
+    fn new(page: i64, page_size: i64, has_more: bool) -> Self {
+        Self {
+            page,
+            page_size,
+            page_size_alias: page_size,
+            has_more,
+            total: None,
+        }
+    }
 }
 
 pub async fn register_customer(
@@ -182,9 +227,7 @@ pub async fn register_customer(
         .await?;
 
     Ok(Json(ApiResponse::ok(
-        WebCustomerAuthResponse {
-            user: web_customer_user(customer),
-        },
+        web_customer_auth_response(customer),
         request_id.0.to_string(),
     )))
 }
@@ -221,9 +264,7 @@ pub async fn login_customer(
         .ok_or_else(|| AppError::not_found("customer not found"))?;
 
     Ok(Json(ApiResponse::ok(
-        WebCustomerAuthResponse {
-            user: web_customer_user(customer),
-        },
+        web_customer_auth_response(customer),
         request_id.0.to_string(),
     )))
 }
@@ -238,9 +279,7 @@ pub async fn get_customer(
     let customer = load_customer(&state, server_key.tenant_id, customer_id).await?;
 
     Ok(Json(ApiResponse::ok(
-        WebCustomerResponse {
-            user: web_customer_user(customer),
-        },
+        web_customer_response(customer),
         request_id.0.to_string(),
     )))
 }
@@ -276,20 +315,28 @@ pub async fn get_customer_usage(
         .map(normalize_usage_status)
         .transpose()?;
     let (page, page_size) = normalize_page(query.page, query.page_size);
+    let fetch_limit = page_size + 1;
     let items = list_customer_usage(
         &state,
         server_key.tenant_id,
         customer_id,
         status.as_deref(),
         page,
-        page_size,
+        fetch_limit,
     )
     .await?;
+    let has_more = items.len() as i64 > page_size;
+    let items = items
+        .into_iter()
+        .take(page_size as usize)
+        .collect::<Vec<_>>();
+    let meta = WebListMeta::new(page, page_size, has_more);
 
     Ok(Json(ApiResponse::ok(
         WebCustomerUsageResponse {
             items,
-            meta: WebListMeta { page, page_size },
+            meta: meta.clone(),
+            pagination: meta,
         },
         request_id.0.to_string(),
     )))
@@ -325,6 +372,12 @@ pub async fn list_ai_models(
     Query(query): Query<WebAiModelListQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let server_key = authenticate_web_server_key(&state, &headers).await?;
+    if let Some(customer_id) = match query.customer_id {
+        Some(customer_id) => Some(customer_id),
+        None => optional_customer_id_from_headers(&headers)?,
+    } {
+        ensure_server_customer_subscription(&state, &server_key, customer_id).await?;
+    }
     let modality = query
         .modality
         .as_deref()
@@ -440,12 +493,18 @@ async fn load_customer_balance(
         r#"
         select
           customer_id,
+          customer_id as customer_id_alias,
           currency,
           balance_minor,
+          balance_minor as balance_minor_alias,
           held_minor,
+          held_minor as held_minor_alias,
           greatest(balance_minor - held_minor, 0)::bigint as available_minor,
+          greatest(balance_minor - held_minor, 0)::bigint as available_minor_alias,
           ai_enabled,
-          daily_spend_limit_minor
+          ai_enabled as ai_enabled_alias,
+          daily_spend_limit_minor,
+          daily_spend_limit_minor as daily_spend_limit_minor_alias
         from ai_wallets
         where tenant_id = $1
           and customer_id = $2
@@ -459,12 +518,18 @@ async fn load_customer_balance(
 
     Ok(balance.unwrap_or(WebCustomerBalance {
         customer_id,
+        customer_id_alias: customer_id,
         currency: "CNY".to_owned(),
         balance_minor: 0,
+        balance_minor_alias: 0,
         held_minor: 0,
+        held_minor_alias: 0,
         available_minor: 0,
+        available_minor_alias: 0,
         ai_enabled: true,
+        ai_enabled_alias: true,
         daily_spend_limit_minor: None,
+        daily_spend_limit_minor_alias: None,
     }))
 }
 
@@ -542,15 +607,43 @@ async fn update_customer_last_login(
     .map_err(map_db_error)
 }
 
+fn web_customer_auth_response(customer: Customer) -> WebCustomerAuthResponse {
+    let customer = web_customer_user(customer);
+    WebCustomerAuthResponse {
+        customer: customer.clone(),
+        user: customer,
+    }
+}
+
+fn web_customer_response(customer: Customer) -> WebCustomerResponse {
+    let customer = web_customer_user(customer);
+    WebCustomerResponse {
+        customer: customer.clone(),
+        user: customer,
+    }
+}
+
 fn web_customer_user(customer: Customer) -> WebCustomerUser {
     WebCustomerUser {
         id: customer.id,
+        customer_id: customer.id,
+        customer_id_alias: customer.id,
         email: customer.email,
         name: customer.name,
-        customer_id: customer.id,
         status: customer.status,
         email_verified: customer.email_verified,
+        email_verified_alias: customer.email_verified,
     }
+}
+
+fn optional_customer_id_from_headers(headers: &HeaderMap) -> Result<Option<Uuid>, AppError> {
+    if headers.contains_key("x-aisaas-customer-id")
+        || headers.contains_key("x-entitlehub-customer-id")
+    {
+        return customer_id_from_headers(headers).map(Some);
+    }
+
+    Ok(None)
 }
 
 fn normalize_email(email: &str) -> Result<String, AppError> {

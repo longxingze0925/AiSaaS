@@ -369,11 +369,11 @@ paths:
               additionalProperties: true
       responses:
         "200":
-          description: Wrapped Web AI generation job list response
+          description: Wrapped Web AI generation job response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WebAiGenerationJobListEnvelope"
+                $ref: "#/components/schemas/WebAiGenerationJobEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/ai/v1/videos/generations:
@@ -511,11 +511,11 @@ paths:
                   type: string
       responses:
         "200":
-          description: Wrapped Web AI generation job response
+          description: Wrapped Web customer auth response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WebAiGenerationJobEnvelope"
+                $ref: "#/components/schemas/WebCustomerEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/customers/login:
@@ -540,11 +540,11 @@ paths:
                   type: string
       responses:
         "200":
-          description: Wrapped Web AI generation job response
+          description: Wrapped Web customer auth response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WebAiGenerationJobEnvelope"
+                $ref: "#/components/schemas/WebCustomerEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/customers/{id}:
@@ -557,11 +557,11 @@ paths:
         - ServerApiKey: []
       responses:
         "200":
-          description: Wrapped Web customer asset list response
+          description: Wrapped Web customer response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WebCustomerAssetListEnvelope"
+                $ref: "#/components/schemas/WebCustomerEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/customers/{id}/balance:
@@ -574,11 +574,11 @@ paths:
         - ServerApiKey: []
       responses:
         "200":
-          description: Wrapped Web customer asset response
+          description: Wrapped Web customer balance response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WebCustomerAssetEnvelope"
+                $ref: "#/components/schemas/WebCustomerBalanceEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/customers/{id}/usage:
@@ -599,11 +599,11 @@ paths:
         - ServerApiKey: []
       responses:
         "200":
-          description: Wrapped Web work list response
+          description: Wrapped Web customer usage list response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WebWorkListEnvelope"
+                $ref: "#/components/schemas/WebCustomerUsageEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/customers/{id}/plan:
@@ -616,11 +616,11 @@ paths:
         - ServerApiKey: []
       responses:
         "200":
-          description: Wrapped Web work list response
+          description: Wrapped Web customer plan response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WebWorkListEnvelope"
+                $ref: "#/components/schemas/WebCustomerPlanEnvelope"
         default:
           $ref: "#/components/responses/ApiError"
   /api/server/web/v1/ai/models:
@@ -637,6 +637,13 @@ paths:
           schema:
             type: string
             enum: [text, image, video, audio, embedding, multimodal]
+        - name: customer_id
+          in: query
+          required: false
+          description: Optional customer id; when present AiSaaS validates customer status and active subscription for the Server Key application.
+          schema:
+            type: string
+            format: uuid
       responses:
         "200":
           description: Provider-compatible model list response
@@ -4807,12 +4814,25 @@ components:
           type: integer
           format: int64
           nullable: true
+        defaultDurationSeconds:
+          type: integer
+          format: int64
+          nullable: true
         image_counts:
           type: array
           items:
             type: integer
             format: int64
+        imageCounts:
+          type: array
+          items:
+            type: integer
+            format: int64
         max_images:
+          type: integer
+          format: int64
+          nullable: true
+        maxImages:
           type: integer
           format: int64
           nullable: true
@@ -4917,19 +4937,37 @@ components:
         input_1k_price_minor:
           type: integer
           format: int64
+        input1kPriceMinor:
+          type: integer
+          format: int64
         output_1k_price_minor:
+          type: integer
+          format: int64
+        output1kPriceMinor:
           type: integer
           format: int64
         request_price_minor:
           type: integer
           format: int64
+        requestPriceMinor:
+          type: integer
+          format: int64
         image_price_minor:
+          type: integer
+          format: int64
+        imagePriceMinor:
           type: integer
           format: int64
         second_price_minor:
           type: integer
           format: int64
+        secondPriceMinor:
+          type: integer
+          format: int64
         minute_price_minor:
+          type: integer
+          format: int64
+        minutePriceMinor:
           type: integer
           format: int64
     AiModelItem:
@@ -4958,6 +4996,9 @@ components:
         provider_model:
           type: string
           nullable: true
+        providerModel:
+          type: string
+          nullable: true
         billing:
           $ref: "#/components/schemas/AiModelBilling"
         capabilities:
@@ -4975,7 +5016,7 @@ components:
             $ref: "#/components/schemas/AiModelItem"
     WebPagination:
       type: object
-      required: [page, page_size, pageSize, hasMore]
+      required: [page, page_size, pageSize, hasMore, total]
       properties:
         page:
           type: integer
@@ -4992,6 +5033,146 @@ components:
         hasMore:
           type: boolean
           example: false
+        total:
+          type: integer
+          format: int64
+          nullable: true
+    WebCustomer:
+      type: object
+      required: [id, customer_id, customerId, email, status, email_verified, emailVerified]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          nullable: true
+        status:
+          type: string
+        email_verified:
+          type: boolean
+        emailVerified:
+          type: boolean
+    WebCustomerEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [customer, user]
+              properties:
+                customer:
+                  $ref: "#/components/schemas/WebCustomer"
+                user:
+                  $ref: "#/components/schemas/WebCustomer"
+    WebCustomerBalance:
+      type: object
+      required:
+        [
+          customer_id,
+          customerId,
+          currency,
+          balance_minor,
+          balanceMinor,
+          held_minor,
+          heldMinor,
+          available_minor,
+          availableMinor,
+          ai_enabled,
+          aiEnabled
+        ]
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+          format: uuid
+        currency:
+          type: string
+        balance_minor:
+          type: integer
+          format: int64
+        balanceMinor:
+          type: integer
+          format: int64
+        held_minor:
+          type: integer
+          format: int64
+        heldMinor:
+          type: integer
+          format: int64
+        available_minor:
+          type: integer
+          format: int64
+        availableMinor:
+          type: integer
+          format: int64
+        ai_enabled:
+          type: boolean
+        aiEnabled:
+          type: boolean
+        daily_spend_limit_minor:
+          type: integer
+          format: int64
+          nullable: true
+        dailySpendLimitMinor:
+          type: integer
+          format: int64
+          nullable: true
+    WebCustomerBalanceEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [balance]
+              properties:
+                balance:
+                  $ref: "#/components/schemas/WebCustomerBalance"
+    WebCustomerUsageRecord:
+      type: object
+      additionalProperties: true
+    WebCustomerUsageEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [items, meta, pagination]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/WebCustomerUsageRecord"
+                meta:
+                  $ref: "#/components/schemas/WebPagination"
+                pagination:
+                  $ref: "#/components/schemas/WebPagination"
+    WebCustomerPlanEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [plan]
+              properties:
+                plan:
+                  nullable: true
+                  additionalProperties: true
     WebAsset:
       type: object
       required: [id, name, kind, asset_type, status, source, sourceAlias, createdAt]
@@ -5024,6 +5205,14 @@ components:
           nullable: true
         mime_type:
           type: string
+          nullable: true
+        file_size:
+          type: integer
+          format: int64
+          nullable: true
+        fileSize:
+          type: integer
+          format: int64
           nullable: true
         thumbnailUrl:
           type: string

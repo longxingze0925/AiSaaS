@@ -205,6 +205,8 @@ pub struct CustomerAssetView {
     #[serde(rename = "mimeType")]
     pub mime_type_alias: Option<String>,
     pub file_size: Option<i64>,
+    #[serde(rename = "fileSize")]
+    pub file_size_alias: Option<i64>,
     pub checksum_sha256: Option<String>,
     #[serde(rename = "thumbnailUrl")]
     pub thumbnail_url: Option<String>,
@@ -242,6 +244,7 @@ impl From<CustomerAsset> for CustomerAssetView {
             mime_type: asset.mime_type.clone(),
             mime_type_alias: asset.mime_type,
             file_size: asset.file_size,
+            file_size_alias: asset.file_size,
             checksum_sha256: asset.checksum_sha256,
             thumbnail_url,
             duration,
@@ -292,6 +295,7 @@ pub struct ListMeta {
     pub page_size_alias: i64,
     #[serde(rename = "hasMore")]
     pub has_more: bool,
+    pub total: Option<i64>,
 }
 
 impl ListMeta {
@@ -301,6 +305,7 @@ impl ListMeta {
             page_size,
             page_size_alias: page_size,
             has_more,
+            total: None,
         }
     }
 }
