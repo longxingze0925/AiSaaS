@@ -21,7 +21,7 @@ interface ProductAccessConfig {
 
 export const productAccessConfig: ProductAccessConfig = {
   applicationDefaults: {
-    name: "AiSaaS API 接入",
+    name: "Ai SaaS API 接入",
     slug: "media-studio-default",
     authMode: "subscription",
     heartbeatIntervalSeconds: 3600,
