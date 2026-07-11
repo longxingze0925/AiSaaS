@@ -1628,7 +1628,7 @@ async fn daily_spend_minor(
             when status in ('pending', 'running') then coalesce((price_snapshot_json->>'held_minor')::bigint, 0)
             else 0
           end
-        ), 0)
+        ), 0)::bigint
         from ai_usage_records
         where tenant_id = $1
           and created_at >= date_trunc('day', now())

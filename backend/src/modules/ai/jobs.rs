@@ -51,6 +51,7 @@ use crate::{
 const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 const DEFAULT_POLL_INTERVAL_SECONDS: i64 = 15;
 const DEFAULT_MAX_ATTEMPTS: i32 = 240;
+const AI_GENERATION_POLL_MAX_ATTEMPTS_ENV: &str = "AI_GENERATION_POLL_MAX_ATTEMPTS";
 const MAX_IMAGE_COUNT: i64 = 10;
 const MAX_VIDEO_SECONDS: i64 = 3600;
 const MAX_AUDIO_SECONDS: i64 = 3600;
@@ -1043,9 +1044,20 @@ async fn process_generation_job_batch(state: &AppState) -> Result<(), String> {
     let jobs = claim_pollable_generation_jobs(state)
         .await
         .map_err(|error| format!("claim ai generation jobs failed: {error}"))?;
+    let max_poll_attempts = generation_poll_max_attempts();
     for job in jobs {
         if let Err(error) = process_generation_job(state, job.clone()).await {
-            if let Err(mark_error) = mark_job_poll_error(state, &job, &error).await {
+            if poll_error_attempts_exhausted(job.attempts, max_poll_attempts) {
+                let reason = format!("AI 生成任务轮询超过最大次数: {}", truncate_error(&error));
+                let provider_body =
+                    poll_error_provider_body(&error, job.attempts, max_poll_attempts);
+                if let Err(mark_error) =
+                    fail_job_and_release_usage(state, &job, &reason, None, Some(provider_body))
+                        .await
+                {
+                    tracing::warn!(%mark_error, job_id = %job.id, "fail ai generation job after poll retries failed");
+                }
+            } else if let Err(mark_error) = mark_job_poll_error(state, &job, &error).await {
                 tracing::warn!(%mark_error, job_id = %job.id, "mark ai generation job poll error failed");
             }
             tracing::warn!(%error, job_id = %job.id, "ai generation job processing failed");
@@ -1053,6 +1065,34 @@ async fn process_generation_job_batch(state: &AppState) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn generation_poll_max_attempts() -> i32 {
+    parse_generation_poll_max_attempts(
+        std::env::var(AI_GENERATION_POLL_MAX_ATTEMPTS_ENV)
+            .ok()
+            .as_deref(),
+    )
+}
+
+fn parse_generation_poll_max_attempts(value: Option<&str>) -> i32 {
+    value
+        .and_then(|value| value.trim().parse::<i32>().ok())
+        .map(|value| value.clamp(1, DEFAULT_MAX_ATTEMPTS))
+        .unwrap_or(DEFAULT_MAX_ATTEMPTS)
+}
+
+fn poll_error_attempts_exhausted(attempts: i32, max_attempts: i32) -> bool {
+    attempts >= max_attempts.clamp(1, DEFAULT_MAX_ATTEMPTS)
+}
+
+fn poll_error_provider_body(error: &str, attempts: i32, max_attempts: i32) -> Value {
+    json!({
+        "source": "poll_error_max_attempts",
+        "error": truncate_error(error),
+        "attempts": attempts,
+        "maxAttempts": max_attempts,
+    })
 }
 
 async fn process_generation_job(state: &AppState, job: JobWorkerRecord) -> Result<(), String> {
@@ -1115,7 +1155,8 @@ async fn process_generation_job(state: &AppState, job: JobWorkerRecord) -> Resul
                 }
                 Err(error) => {
                     metrics::record_ai_gateway_asset_cache_failure();
-                    mark_job_caching_failed(state, job.id, &error.to_string(), poll.body)
+                    let reason = error.to_string();
+                    mark_job_caching_failed(state, job.id, &reason, poll.body)
                         .await
                         .map_err(|error| error.to_string())?;
                 }
@@ -2967,6 +3008,13 @@ async fn fail_job_and_release_usage(
         .usage_id
         .ok_or_else(|| AppError::dependency("ai generation usage id missing"))?;
     let usage = find_usage_for_update(&mut transaction, usage_id).await?;
+    let failure_metadata = json!({
+        "source": "generation_job_failure_release",
+        "job_id": job.id,
+        "provider_job_id": job.provider_job_id.as_deref(),
+        "reason": truncate_error(reason),
+    });
+    let mut released_minor = 0;
     if usage.status != "failed" && usage.status != "succeeded" {
         let wallet = find_wallet_by_id_for_update(&mut transaction, usage.wallet_id).await?;
         let updated_wallet = if usage.held_minor > 0 {
@@ -2989,9 +3037,10 @@ async fn fail_job_and_release_usage(
                 -usage.held_minor,
                 reason,
                 usage_id,
-                json!({}),
+                failure_metadata.clone(),
             )
             .await?;
+            released_minor = usage.held_minor;
         }
         update_usage_failed(
             &mut transaction,
@@ -3002,9 +3051,9 @@ async fn fail_job_and_release_usage(
                 .and_then(|value| value.parse::<i32>().ok())
                 .unwrap_or(0),
             job.provider_job_id.as_deref(),
-            usage.held_minor,
+            released_minor,
             provider_body.as_ref(),
-            json!({}),
+            failure_metadata,
         )
         .await?;
     }
@@ -3015,7 +3064,7 @@ async fn fail_job_and_release_usage(
         provider_status,
         reason,
         provider_body.as_ref(),
-        usage.held_minor,
+        released_minor,
     )
     .await?;
     transaction.commit().await.map_err(map_db_error)
@@ -3890,34 +3939,22 @@ async fn mark_job_poll_error(
     job: &JobWorkerRecord,
     error: &str,
 ) -> Result<(), AppError> {
-    let status = if job.attempts >= DEFAULT_MAX_ATTEMPTS {
-        "timeout_review"
-    } else {
-        "running"
-    };
-    let next_poll_sql = if status == "timeout_review" {
-        "null"
-    } else {
-        "now() + interval '60 seconds'"
-    };
-    let sql = format!(
+    sqlx::query(
         r#"
         update ai_generation_jobs
-        set status = $2,
-            failure_reason = $3,
-            next_poll_at = {next_poll_sql},
+        set status = 'running',
+            failure_reason = $2,
+            next_poll_at = now() + interval '60 seconds',
             updated_at = now()
         where id = $1
-        "#
-    );
-    sqlx::query(&sql)
-        .bind(job.id)
-        .bind(status)
-        .bind(truncate_error(error))
-        .execute(&state.db)
-        .await
-        .map(|_| ())
-        .map_err(map_db_error)
+        "#,
+    )
+    .bind(job.id)
+    .bind(truncate_error(error))
+    .execute(&state.db)
+    .await
+    .map(|_| ())
+    .map_err(map_db_error)
 }
 
 async fn mark_job_for_poll_retry(
@@ -4754,7 +4791,7 @@ async fn daily_spend_minor(
             when status in ('pending', 'running') then coalesce((price_snapshot_json->>'held_minor')::bigint, 0)
             else 0
           end
-        ), 0)
+        ), 0)::bigint
         from ai_usage_records
         where tenant_id = $1
           and created_at >= date_trunc('day', now())
@@ -5914,6 +5951,10 @@ fn is_http_asset_url(value: &str) -> bool {
 }
 
 fn ensure_provider_asset_url_allowed(url: &reqwest::Url) -> Result<(), AppError> {
+    if allow_local_provider_asset_urls_for_development() {
+        return Ok(());
+    }
+
     let host = url
         .host_str()
         .ok_or_else(|| AppError::dependency("ai provider asset url host is invalid"))?;
@@ -5932,6 +5973,20 @@ fn ensure_provider_asset_url_allowed(url: &reqwest::Url) -> Result<(), AppError>
     }
 
     Ok(())
+}
+
+fn allow_local_provider_asset_urls_for_development() -> bool {
+    let app_env = std::env::var("APP_ENV").unwrap_or_else(|_| "development".to_owned());
+    let allow_local = std::env::var("ALLOW_LOCAL_PROVIDER_ASSET_URLS")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false);
+
+    app_env.eq_ignore_ascii_case("development") && allow_local
 }
 
 fn is_disallowed_asset_ip(ip: IpAddr) -> bool {
@@ -6217,9 +6272,11 @@ mod tests {
     use super::{
         collect_asset_urls, estimated_quantity, filter_job_models_by_unhealthy_ids,
         job_error_is_retryable, job_status_is_retryable, job_usage_metadata,
-        normalize_generation_request_payload, provider_asset_metadata, provider_job_id_from_body,
-        reference_asset_inputs, wuyin_status_from_body, wuyin_submit_payload,
-        GenerationInputAssets, JobModel, ProviderJobStatus, ReferenceAssetRole, MAX_VIDEO_SECONDS,
+        normalize_generation_request_payload, parse_generation_poll_max_attempts,
+        poll_error_attempts_exhausted, poll_error_provider_body, provider_asset_metadata,
+        provider_job_id_from_body, reference_asset_inputs, wuyin_status_from_body,
+        wuyin_submit_payload, GenerationInputAssets, JobModel, ProviderJobStatus,
+        ReferenceAssetRole, DEFAULT_MAX_ATTEMPTS, MAX_VIDEO_SECONDS,
     };
 
     fn test_model(job_type: &str, provider_model: &str) -> JobModel {
@@ -6279,6 +6336,49 @@ mod tests {
         };
 
         assert!(job_error_is_retryable(&model));
+    }
+
+    #[test]
+    fn generation_poll_max_attempts_config_uses_default_for_missing_or_invalid_values() {
+        assert_eq!(
+            parse_generation_poll_max_attempts(None),
+            DEFAULT_MAX_ATTEMPTS
+        );
+        assert_eq!(
+            parse_generation_poll_max_attempts(Some("not-a-number")),
+            DEFAULT_MAX_ATTEMPTS
+        );
+    }
+
+    #[test]
+    fn generation_poll_max_attempts_config_is_clamped_to_safe_range() {
+        assert_eq!(parse_generation_poll_max_attempts(Some("0")), 1);
+        assert_eq!(parse_generation_poll_max_attempts(Some("-10")), 1);
+        assert_eq!(
+            parse_generation_poll_max_attempts(Some("999999")),
+            DEFAULT_MAX_ATTEMPTS
+        );
+        assert_eq!(parse_generation_poll_max_attempts(Some("3")), 3);
+    }
+
+    #[test]
+    fn poll_error_attempts_exhausted_after_claim_increment_reaches_limit() {
+        assert!(!poll_error_attempts_exhausted(2, 3));
+        assert!(poll_error_attempts_exhausted(3, 3));
+        assert!(poll_error_attempts_exhausted(4, 3));
+    }
+
+    #[test]
+    fn poll_error_provider_body_records_failure_context() {
+        let body = poll_error_provider_body("ai provider detail failed: status 404", 3, 3);
+
+        assert_eq!(body["source"], json!("poll_error_max_attempts"));
+        assert_eq!(
+            body["error"],
+            json!("ai provider detail failed: status 404")
+        );
+        assert_eq!(body["attempts"], json!(3));
+        assert_eq!(body["maxAttempts"], json!(3));
     }
 
     #[test]

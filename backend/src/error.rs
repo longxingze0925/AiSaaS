@@ -476,6 +476,13 @@ impl IntoResponse for AppError {
         };
 
         let error_code = detailed_error_code(&self).unwrap_or(message);
+        tracing::warn!(
+            status = %status,
+            code,
+            error_code,
+            error = %self,
+            "request failed"
+        );
         let body = ApiErrorResponse {
             code,
             error_code,
